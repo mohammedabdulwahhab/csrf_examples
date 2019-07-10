@@ -21,6 +21,7 @@ function is_authenticated(req, res, next) {
   }
 }
 
+
 app.get('/auth', (req, res) => {
   console.log('Authenticating', req.query.username, req.query.password)
   // User has valid login
@@ -41,14 +42,27 @@ app.get('/auth', (req, res) => {
   }
 })
 
+const hash = require('crypto-js').SHA256
+
+function generate_csrf_token_from(session){
+  return hash(session).toString()
+}
 
 app.get('/', is_authenticated, (req, res, next) => {
   console.log('Logged into banking website')
   res.set('Content-Type', 'text/html');
-  res.status(200).send("<h3>Welcome to your bank!</h3><form action='/transfer' method='post'><input id='POST-name' placeholder='recipient' name='recipient'><input id='POST-amount' placeholder='$20' name='amount'><input type='submit' value='Save'></form>")
+  // Send csrf token in hidden input
+  let csrf_token = generate_csrf_token_from(req.cookies['session'])
+  res.status(200).send("<h3>Welcome to your bank!</h3><form action='/transfer' method='post'><input id='POST-name' placeholder='recipient' name='recipient'><input id='POST-amount' placeholder='$20' name='amount'><input id='POST-csrf' value='" + csrf_token + "' name='csrf_token' type='hidden'><input type='submit' value='Save'></form>")
 })
 
 app.post('/transfer', is_authenticated, (req, res) => {
+  // if csrf token in form doesn'tvalidate - FUCK EVERYTHING UP
+  if (req.body.csrf_token != generate_csrf_token_from(req.cookies['session'])){
+    res.status(403).send('Bad request!')
+    return
+  }
+
   console.log('Transferring money to', req.body.recipient, req.body.amount)
   res.set('Content-Type', 'text/html');
   res.status(200).send('<h3>Success! Go back to <a href="/">home</a></h3>')
